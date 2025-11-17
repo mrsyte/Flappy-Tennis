@@ -1,9 +1,19 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Tennis Ball Bounce</title>
+    <meta name="description" content="Tennis Ball Bounce - A fun mobile game where you navigate a tennis ball through nets! Tap to bounce and avoid obstacles.">
+    <meta name="keywords" content="tennis game, mobile game, flappy bird, arcade game, HTML5 game">
+    <meta name="author" content="Your Name">
+    
+    <!-- Open Graph / Social Media Meta Tags -->
+    <meta property="og:title" content="Tennis Ball Bounce Game">
+    <meta property="og:description" content="Play Tennis Ball Bounce - Navigate through tennis nets and score points!">
+    <meta property="og:type" content="website">
+    
+    <title>Tennis Ball Bounce - Mobile Tennis Game</title>
+    
     <style>
         body {
             margin: 0;
@@ -68,6 +78,13 @@
             margin: 4px 2px;
             cursor: pointer;
             border-radius: 8px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:active {
+            background-color: #3d8b40;
         }
         #score-display {
             position: absolute;
@@ -76,6 +93,30 @@
             font-size: 24px;
             color: white;
             z-index: 5;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            font-weight: bold;
+        }
+        #start-screen h1 {
+            font-size: 36px;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        #start-screen p {
+            font-size: 18px;
+            margin-bottom: 30px;
+            max-width: 80%;
+            text-align: center;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+        }
+        #game-over h1 {
+            font-size: 36px;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        #final-score {
+            font-size: 24px;
+            margin-bottom: 30px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
         }
     </style>
 </head>
@@ -84,8 +125,8 @@
         <canvas id="game-canvas"></canvas>
         <div id="score-display">Score: 0</div>
         <div id="start-screen">
-            <h1>Tennis Ball Bounce</h1>
-            <p>Tap to make the tennis ball bounce through the racquets!</p>
+            <h1>🎾 Tennis Ball Bounce</h1>
+            <p>Tap to make the tennis ball bounce through the nets!</p>
             <button id="start-button">Start Game</button>
         </div>
         <div id="game-over">
@@ -112,6 +153,7 @@
 
         // Game state
         let gameRunning = false;
+        let gameStarted = false;
         let score = 0;
         let gravity = 0.5;
         let speed = 3;
@@ -123,12 +165,24 @@
             radius: 15,
             velocity: 0,
             jump: -8,
-            color: '#CCFF00'
+            color: '#CCFF00',
+            isHit: false,
+            hitAnimation: 0
+        };
+        
+        // Player racket (for hit animation)
+        const playerRacket = {
+            width: 70,
+            height: 100,
+            rotation: 0,
+            visible: false,
+            animationFrames: 0,
+            maxAnimationFrames: 15
         };
 
         // Tennis racquets (obstacles)
         let racquets = [];
-        const racquetWidth = 30;
+        const racquetWidth = 20;
         const racquetGap = 150;
         const racquetSpacing = 300;
 
@@ -180,100 +234,198 @@
             scoreDisplay.textContent = "Score: 0";
             initRacquets();
             gameRunning = true;
+            gameStarted = true;
+            playerRacket.visible = false;
+            playerRacket.animationFrames = 0;
         }
 
         // Draw tennis ball
         function drawBall() {
+            // Draw the ball with potential squash effect during hit
+            let ballRadiusX = ball.radius;
+            let ballRadiusY = ball.radius;
+            
+            if (ball.isHit) {
+                // Create squash effect during hit animation
+                ballRadiusX = ball.radius * (1 + 0.3 * (1 - ball.hitAnimation / 5));
+                ballRadiusY = ball.radius * (1 - 0.2 * (1 - ball.hitAnimation / 5));
+            }
+            
             ctx.beginPath();
-            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.ellipse(ball.x, ball.y, ballRadiusX, ballRadiusY, 0, 0, Math.PI * 2);
             ctx.fillStyle = ball.color;
             ctx.fill();
 
             // Draw the curved lines on the tennis ball
             ctx.beginPath();
-            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.ellipse(ball.x, ball.y, ballRadiusX, ballRadiusY, 0, 0, Math.PI * 2);
             ctx.strokeStyle = 'black';
             ctx.lineWidth = 1.5;
             ctx.stroke();
 
             // Horizontal curve
             ctx.beginPath();
-            ctx.moveTo(ball.x - ball.radius, ball.y);
+            ctx.moveTo(ball.x - ballRadiusX, ball.y);
             ctx.bezierCurveTo(
-                ball.x - ball.radius / 2, ball.y - ball.radius / 4,
-                ball.x + ball.radius / 2, ball.y - ball.radius / 4,
-                ball.x + ball.radius, ball.y
+                ball.x - ballRadiusX / 2, ball.y - ballRadiusY / 4,
+                ball.x + ballRadiusX / 2, ball.y - ballRadiusY / 4,
+                ball.x + ballRadiusX, ball.y
             );
             ctx.stroke();
 
             // Vertical curve
             ctx.beginPath();
-            ctx.moveTo(ball.x, ball.y - ball.radius);
+            ctx.moveTo(ball.x, ball.y - ballRadiusY);
             ctx.bezierCurveTo(
-                ball.x - ball.radius / 4, ball.y - ball.radius / 2,
-                ball.x - ball.radius / 4, ball.y + ball.radius / 2,
-                ball.x, ball.y + ball.radius
+                ball.x - ballRadiusX / 4, ball.y - ballRadiusY / 2,
+                ball.x - ballRadiusX / 4, ball.y + ballRadiusY / 2,
+                ball.x, ball.y + ballRadiusY
             );
             ctx.stroke();
+            
+            // Update hit animation
+            if (ball.isHit) {
+                ball.hitAnimation--;
+                if (ball.hitAnimation <= 0) {
+                    ball.isHit = false;
+                }
+            }
+        }
+        
+        // Draw player racket
+        function drawPlayerRacket() {
+            if (!playerRacket.visible) return;
+            
+            ctx.save();
+            
+            // Calculate position - slightly behind and below the ball
+            const racketX = ball.x - 30;
+            const racketY = ball.y + 30;
+            
+            // Calculate animation progress (0 to 1)
+            const progress = playerRacket.animationFrames / playerRacket.maxAnimationFrames;
+            
+            // Use progress for rotation animation
+            playerRacket.rotation = -Math.PI/4 + progress * Math.PI/2;
+            
+            // Draw the racket
+            ctx.translate(racketX, racketY);
+            ctx.rotate(playerRacket.rotation);
+            
+            // Racket handle
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(-10, 0, 20, 100);
+            
+            // Racket frame - more oval shaped
+            ctx.beginPath();
+            ctx.ellipse(0, -playerRacket.height/2, playerRacket.width/2, playerRacket.height/2, 0, 0, Math.PI * 2);
+            ctx.fillStyle = '#663300';
+            ctx.fill();
+            
+            // Racket strings area - more oval shaped
+            ctx.beginPath();
+            ctx.ellipse(0, -playerRacket.height/2, playerRacket.width/2 - 5, playerRacket.height/2 - 5, 0, 0, Math.PI * 2);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fill();
+            
+            // Racket strings
+            ctx.strokeStyle = '#CCCCCC';
+            ctx.lineWidth = 1;
+            
+            // Vertical strings
+            for (let i = -playerRacket.width/2 + 10; i < playerRacket.width/2 - 5; i += 10) {
+                ctx.beginPath();
+                const startY = -playerRacket.height - 5 + Math.sqrt(Math.pow(playerRacket.height/2 - 5, 2) * (1 - Math.pow(i/(playerRacket.width/2 - 5), 2)));
+                const endY = -playerRacket.height + 5 + Math.sqrt(Math.pow(playerRacket.height/2 - 5, 2) * (1 - Math.pow(i/(playerRacket.width/2 - 5), 2)));
+                ctx.moveTo(i, startY);
+                ctx.lineTo(i, endY);
+                ctx.stroke();
+            }
+            
+            // Horizontal strings
+            for (let i = -playerRacket.height + 10; i < 0 - 5; i += 10) {
+                ctx.beginPath();
+                const width = Math.sqrt(Math.pow(playerRacket.width/2 - 5, 2) * (1 - Math.pow((i + playerRacket.height/2)/(playerRacket.height/2 - 5), 2)));
+                ctx.moveTo(-width, i);
+                ctx.lineTo(width, i);
+                ctx.stroke();
+            }
+            
+            ctx.restore();
+            
+            // Update animation frame
+            playerRacket.animationFrames++;
+            if (playerRacket.animationFrames > playerRacket.maxAnimationFrames) {
+                playerRacket.visible = false;
+            }
         }
 
         // Draw tennis racquets
         function drawRacquets() {
             racquets.forEach(racquet => {
-                // Draw upper racquet (frame)
-                ctx.fillStyle = '#663300';
+                // Draw tennis net posts (upper)
+                ctx.fillStyle = '#000000';
                 ctx.fillRect(racquet.x - 5, 0, racquetWidth + 10, racquet.upperHeight);
                 
-                // Draw upper racquet (strings)
-                ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(racquet.x, 0, racquetWidth, racquet.upperHeight);
+                // Draw net (upper)
+                drawNet(racquet.x, 0, racquetWidth, racquet.upperHeight);
                 
-                // Draw string pattern on upper racquet
-                drawStrings(racquet.x, 0, racquetWidth, racquet.upperHeight);
-                
-                // Draw lower racquet (frame)
-                ctx.fillStyle = '#663300';
+                // Draw tennis net posts (lower)
+                ctx.fillStyle = '#000000';
                 ctx.fillRect(racquet.x - 5, canvas.height - ground.height - racquet.lowerHeight, racquetWidth + 10, racquet.lowerHeight);
                 
-                // Draw lower racquet (strings)
-                ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(racquet.x, canvas.height - ground.height - racquet.lowerHeight, racquetWidth, racquet.lowerHeight);
-                
-                // Draw string pattern on lower racquet
-                drawStrings(racquet.x, canvas.height - ground.height - racquet.lowerHeight, racquetWidth, racquet.lowerHeight);
+                // Draw net (lower)
+                drawNet(racquet.x, canvas.height - ground.height - racquet.lowerHeight, racquetWidth, racquet.lowerHeight);
             });
         }
-
-        // Draw racquet strings
-        function drawStrings(x, y, width, height) {
-            ctx.strokeStyle = '#CCCCCC';
+        
+        // Draw tennis net
+        function drawNet(x, y, width, height) {
+            // Draw white net background
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(x, y, width, height);
+            
+            // Draw net pattern
+            const netSpacing = 10;
+            ctx.strokeStyle = '#000000';
             ctx.lineWidth = 1;
             
-            // Vertical strings
-            for (let i = 0; i <= width; i += width/5) {
+            // Vertical lines
+            for (let i = x; i <= x + width; i += netSpacing) {
                 ctx.beginPath();
-                ctx.moveTo(x + i, y);
-                ctx.lineTo(x + i, y + height);
+                ctx.moveTo(i, y);
+                ctx.lineTo(i, y + height);
                 ctx.stroke();
             }
             
-            // Horizontal strings
-            for (let i = 0; i <= height; i += height/10) {
+            // Horizontal lines
+            for (let i = y; i <= y + height; i += netSpacing) {
                 ctx.beginPath();
-                ctx.moveTo(x, y + i);
-                ctx.lineTo(x + width, y + i);
+                ctx.moveTo(x, i);
+                ctx.lineTo(x + width, i);
                 ctx.stroke();
             }
         }
 
         // Draw ground
         function drawGround() {
-            ctx.fillStyle = ground.color;
+            // Draw court surface
+            ctx.fillStyle = '#4AA049';  // Tennis court green
             ctx.fillRect(0, ground.y, canvas.width, ground.height);
             
-            // Draw grass on top
-            ctx.fillStyle = '#33cc33';
-            ctx.fillRect(0, ground.y, canvas.width, 10);
+            // Draw court lines
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, ground.y, canvas.width, 4);
+            
+            // Draw court texture
+            ctx.strokeStyle = '#3C8C3E';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < canvas.width; i += 20) {
+                ctx.beginPath();
+                ctx.moveTo(i, ground.y + 5);
+                ctx.lineTo(i, ground.y + ground.height);
+                ctx.stroke();
+            }
         }
 
         // Draw clouds
@@ -343,6 +495,7 @@
             gameRunning = false;
             finalScore.textContent = "Your score: " + score;
             gameOverScreen.style.display = "flex";
+            scoreDisplay.style.display = 'none';
         }
 
         // Update racquets
@@ -395,6 +548,9 @@
             drawRacquets();
             drawGround();
             drawBall();
+            if (gameStarted) {
+                drawPlayerRacket();
+            }
             
             // Continue game loop
             requestAnimationFrame(gameLoop);
@@ -404,6 +560,14 @@
         function handleTap() {
             if (gameRunning) {
                 ball.velocity = ball.jump;
+                
+                // Show racket animation
+                playerRacket.visible = true;
+                playerRacket.animationFrames = 0;
+                
+                // Add ball hit effect
+                ball.isHit = true;
+                ball.hitAnimation = 5;
             }
         }
 
@@ -417,12 +581,14 @@
         // Start button
         startButton.addEventListener('click', function() {
             startScreen.style.display = 'none';
+            scoreDisplay.style.display = 'block';
             resetGame();
         });
 
         // Restart button
         restartButton.addEventListener('click', function() {
             gameOverScreen.style.display = 'none';
+            scoreDisplay.style.display = 'block';
             resetGame();
         });
 
@@ -431,12 +597,21 @@
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
             ground.y = canvas.height - 50;
-            resetGame();
+            ball.x = canvas.width / 4;
+            if (!gameStarted) {
+                ball.y = canvas.height / 2;
+            }
+            initClouds();
         });
 
         // Initialize game
         initClouds();
         initRacquets();
+        
+        // Make sure score display is hidden initially
+        scoreDisplay.style.display = 'none';
+        
+        // Start the game loop but don't start the game yet
         gameLoop();
     </script>
 </body>
